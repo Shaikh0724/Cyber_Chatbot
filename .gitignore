@@ -1,0 +1,14 @@
+# Environments (Inke shuru mein dot hai kyunki folder ka naam hi aisa hai)
+.venv/
+.env
+
+# Python Caches
+__pycache__/
+*.py[cod]
+
+# Your Vector Database (Iske shuru mein dot NAHI aayega)
+chroma_db_cyber/
+
+# OS Files
+.DS_Store
+Thumbs.db
