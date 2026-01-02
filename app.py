@@ -7,131 +7,108 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 
+# Load Environment Variables
 load_dotenv()
 
 # --- Page Configuration ---
 st.set_page_config(page_title="Cyber Security Analyst", page_icon="🛡️", layout="centered")
 
-# --- Professional Light UI (Tameez Wala White Theme) ---
+# --- UI Styling (Clean Professional White) ---
 st.markdown("""
     <style>
-    /* Light Background */
-    .stApp { 
-        background-color: #ffffff; 
-    }
-    /* Main Title - Dark Blue */
-    .main-title { 
-        color: #1e3a8a; 
-        font-size: 40px; 
-        font-weight: bold; 
-        text-align: center; 
-        margin-bottom: 10px;
-    }
-    /* Sub Title - Grey */
-    .sub-title { 
-        color: #4b5563; 
-        text-align: center; 
-        margin-bottom: 40px; 
-        font-size: 18px;
-        font-style: italic;
-    }
-    /* Chat Messages - Light Grey with Dark Text */
-    .stChatMessage { 
-        background-color: #f3f4f6 !important; 
-        border-radius: 12px; 
-        border: 1px solid #e5e7eb;
-        color: #111827 !important;
-    }
-    /* Chat Input text color */
-    input {
-        color: #000000 !important;
-    }
-    /* Sidebar styling */
-    section[data-testid="stSidebar"] {
-        background-color: #f9fafb;
-        border-right: 1px solid #e5e7eb;
-    }
+    .stApp { background-color: #ffffff; }
+    .main-title { color: #1e3a8a; font-size: 40px; font-weight: bold; text-align: center; }
+    .sub-title { color: #4b5563; text-align: center; margin-bottom: 40px; font-size: 18px; font-style: italic; }
+    .stChatMessage { background-color: #f3f4f6 !important; border-radius: 12px; border: 1px solid #e5e7eb; color: #111827 !important; }
+    input { color: #000000 !important; }
     </style>
     """, unsafe_allow_html=True)
 
 st.markdown("<div class='main-title'>🛡️ Cyber Security Analyst</div>", unsafe_allow_html=True)
-st.markdown("<div class='sub-title'>Technical Analysis of Security Frameworks & Threats</div>", unsafe_allow_html=True)
+st.markdown("<div class='sub-title'>Specialized in NIST Frameworks, Zero Trust & Threat Intelligence</div>", unsafe_allow_html=True)
 
-# --- Load Database ---
+# --- Database Loading with Auto-Ingestion Logic ---
 @st.cache_resource
-def load_db():
-    if os.path.exists("./chroma_db_cyber"):
-        embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-        return Chroma(persist_directory="./chroma_db_cyber", embedding_function=embeddings)
-    return None
+def load_cyber_db():
+    DB_PATH = "./chroma_db_cyber"
+    DATA_PATH = "cyber_data/"
+    
+    # AGAR DATABASE NAHI HAI, TOH KHUD BANAO
+    if not os.path.exists(DB_PATH):
+        if os.path.exists(DATA_PATH) and len(os.listdir(DATA_PATH)) > 0:
+            with st.spinner("🚀 Database not found! Ingesting your security papers for the first time..."):
+                from ingestion import create_cyber_db
+                create_cyber_db()
+        else:
+            st.error(f"⚠️ Error: '{DATA_PATH}' folder is empty or missing. Please upload PDFs first!")
+            st.stop()
+            
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+    return Chroma(persist_directory=DB_PATH, embedding_function=embeddings)
 
-db = load_db()
-
-if db is None:
-    st.warning("⚠️ Database not found. Running ingestion first might help!")
-    st.stop()
+# Initialize DB
+db = load_cyber_db()
 
 # --- RAG Setup ---
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 retriever = db.as_retriever(search_type="similarity", search_kwargs={'k': 5})
 
-template = """You are a highly skilled Cybersecurity Consultant. 
-Answer the following question clearly and formally based on the provided technical context.
-If you cannot find the answer in the documents, state that clearly and offer general security advice.
+template = """You are an elite Cybersecurity Consultant. 
+Answer the following question using the provided technical context. 
+If the information is not in the documents, advise based on best practices like NIST or ISO 27001.
 
 Context: {context}
 Question: {question}
 
-Expert Response:"""
+Expert Analysis:"""
 
 prompt = ChatPromptTemplate.from_template(template)
 
 def format_docs(docs):
-    return "\n\n".join(f"--- Document: {doc.metadata.get('source')} ---\n{doc.page_content}" for doc in docs)
+    return "\n\n".join(f"Source: {doc.metadata.get('source')}\n{doc.page_content}" for doc in docs)
 
 rag_chain = (
     {"context": retriever | format_docs, "question": RunnablePassthrough()}
     | prompt | llm | StrOutputParser()
 )
 
-# --- Chat Logic ---
+# --- Chat Interface ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 # Sidebar
 with st.sidebar:
-    st.title("🛡️ Console")
+    st.title("🛡️ Admin Console")
     if st.button("Clear Chat History"):
         st.session_state.messages = []
         st.rerun()
-    st.write("Current Focus: NIST, Zero Trust, & Threat Intel")
+    st.success("System: Connected to Cyber Knowledge Base")
 
-# Display Messages
+# Show Messages
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# User Interaction
-if query := st.chat_input("Enter your security query..."):
+# User Query
+if query := st.chat_input("Ask about NIST CSF 2.0, Zero Trust, or specific threats..."):
     st.session_state.messages.append({"role": "user", "content": query})
     with st.chat_message("user"):
         st.markdown(query)
 
     with st.chat_message("assistant"):
-        with st.spinner("Consulting technical papers..."):
+        with st.spinner("Analyzing technical documents..."):
             try:
                 response = rag_chain.invoke(query)
                 st.markdown(response)
                 
-                # Citations
+                # Show Citations
                 docs = retriever.invoke(query)
-                with st.expander("📚 View Technical Sources"):
+                with st.expander("🔍 Verified Technical Sources"):
                     sources = {doc.metadata.get('source') for doc in docs}
                     for s in sources:
-                        st.write(f"- {s}")
+                        st.write(f"📌 {s}")
                 
                 st.session_state.messages.append({"role": "assistant", "content": response})
             except Exception as e:
-                st.error(f"Error: {str(e)}")
-
+                st.error(f"An error occurred: {str(e)}")
                 
