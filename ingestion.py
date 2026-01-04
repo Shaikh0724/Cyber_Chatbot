@@ -21,7 +21,7 @@ def create_cyber_db():
     loader = DirectoryLoader(DATA_PATH, glob="./*.pdf", loader_cls=PyPDFLoader)
     documents = loader.load()
     
-    # Technical docs ke liye overlap thora zyada rakha hai (200)
+    
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000, 
         chunk_overlap=200 
